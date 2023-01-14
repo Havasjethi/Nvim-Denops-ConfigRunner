@@ -1,50 +1,67 @@
 // deno-lint-ignore-file no-unused-vars require-await
 import { Denops } from 'https://deno.land/x/denops_std@v1.0.0/mod.ts';
 import { ensureString } from 'https://deno.land/x/unknownutil@v0.1.1/mod.ts';
+import { CommandLoader, CommandManager } from './src/config_manager.ts';
 import { FileHandler } from './src/file_handler.ts';
-
-type FileType = string;
-
-let PROJECT_ROOT: FileType | undefined = undefined;
 
 const CONFIG_FOLDER = '.vim';
 const CONFIG_FILE = 'havas-project.json';
 
-// Might be a Set
-const PATTERNS: string[] = [];
+const file_handler = new FileHandler(CONFIG_FOLDER);
+file_handler.find_root_or_current();
+const manager = new CommandManager();
+const loader = new CommandLoader(manager, file_handler, CONFIG_FILE);
 
-const enum COMMAND_NAMES {
-  add_pattern = 'add_pattern',
-  show_list = 'show_pattern',
-  write_buffer = 'write_buffer',
-  remove_pattern = '',
-  search_command = '',
-  execute_last_command = '',
-  execute_by_id = '',
-}
-
-const commands = [{ id: 1, name: 'Szia', command: ['echo', 'szia'] }];
+const global_state = {
+  file_handler,
+  manager,
+  loader,
+};
 
 export async function main(denops: Denops): Promise<void> {
+  file_handler.find_root_or_current();
+  const loader = new CommandLoader(manager, file_handler, CONFIG_FILE);
+  loader.load().catch((e) => console.log('No file'));
+  manager.onAction((x) => loader.store());
+
+  if (file_handler.vim_config_exists('.vimrc')) {
+    denops.cmd(`source ${CONFIG_FOLDER}/.vimrc`);
+  }
+
+  if (file_handler.vim_config_exists('init.lua')) {
+    denops.cmd(`luafile ${CONFIG_FOLDER}/init.lua`);
+  }
+
   initCommands(denops);
-  new FileHandler(denops).find_root();
 }
 
 const initCommands = async (denops: Denops) => {
   const denops_required: Record<string, CallableFunction> = {
-    AddPattern: add_pattern,
-    ShowPattern: show_pattern,
+    async AddPattern(this: Denops, pattern: string): Promise<void> {
+      ensureString(pattern);
+      global_state.file_handler.add_indicator(pattern);
+    },
+    async ShowPattern(this: Denops): Promise<void> {
+      console.log(global_state.file_handler.get_indicators());
+    },
+    async AddCommand(this: Denops, input_string: string): Promise<void> {
+      // ensureString(pattern);
+      const x = input_string.split(',');
+      global_state.manager.addConfig({ name: x[0], command: x[1].split(' ') });
+      global_state.manager;
+    },
     async ListCommands(this: Denops): Promise<void> {
+      const commands: CommandLike[] = global_state.manager.getCommands();
       const x = `:lua AVAILABLE_COMMANDS = ${mapper(commands)}`;
       await denops.cmd(x);
       await denops.cmd(`:HavasConfigListLua`);
     },
-    async ExecuteCommand(this: Denops, asdasd: unknown): Promise<void> {
-      console.log('Executing... ', asdasd);
+    async ExecuteCommand(this: Denops, commandId: unknown): Promise<void> {
+      console.log('Executing... ', commandId);
     },
     async Test(this: Denops): Promise<void> {
       const result = await denops.cmd(':lua ' + `require('telescope.themes').get_dropdown{}`);
-      console.log('Result:: ', result);
+      console.log('Result xyz:: ', result);
     },
   };
   await xxx(denops, denops_required);
@@ -53,7 +70,7 @@ const initCommands = async (denops: Denops) => {
 type CommandLike = {
   id: number;
   name: string;
-  command: string[];
+  // command?: string[];
 };
 
 const mapper = (commands: CommandLike[]) => {
@@ -79,42 +96,27 @@ async function xxx(denops: Denops, denops_required: Record<string, CallableFunct
   };
 }
 
-async function add_pattern(this: Denops, pattern: string): Promise<void> {
-  ensureString(pattern);
-  PATTERNS.push(pattern);
-}
-
-async function show_pattern(this: Denops): Promise<void> {
-  console.log(PATTERNS.join(', ') || '<no pattern>');
-}
-
-async function storeConfigFile(bufferId: number) {
-  if (!PROJECT_ROOT) {
-    setProjectRoot;
-  }
-}
-
-async function setProjectRoot(this: Denops, currentRoot: string): Promise<FileType> {
-  const entries = [];
-  const folder = currentRoot;
-  const targets = PATTERNS;
-  let match_found = false;
-
-  if (targets.length === 0) {
-    PROJECT_ROOT = folder;
-    return PROJECT_ROOT;
-  }
-
-  do {
-    for await (const dirEntry of Deno.readDir(currentRoot)) {
-      const matching = !!targets.find((e) => e === dirEntry.name);
-      if (matching) {
-        match_found = true;
-      }
-      entries.push();
-    }
-  } while (!match_found);
-
-  PROJECT_ROOT = folder;
-  return PROJECT_ROOT;
-}
+// async function setProjectRoot(this: Denops, currentRoot: string): Promise<FileType> {
+// const entries = [];
+// const folder = currentRoot;
+// const targets = PATTERNS;
+// let match_found = false;
+//
+// if (targets.length === 0) {
+// PROJECT_ROOT = folder;
+// return PROJECT_ROOT;
+// }
+//
+// do {
+// for await (const dirEntry of Deno.readDir(currentRoot)) {
+// const matching = !!targets.find((e) => e === dirEntry.name);
+// if (matching) {
+// match_found = true;
+// }
+// entries.push();
+// }
+// } while (!match_found);
+//
+// PROJECT_ROOT = folder;
+// return PROJECT_ROOT;
+// }

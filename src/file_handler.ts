@@ -1,19 +1,19 @@
 import { existsSync } from './deps.ts';
 import './string_extend.ts';
 
-const root_patterns = [];
-
-const VIM_FOLDER = '.vim';
-
 export class FileHandler {
   private project_root: string | undefined;
   private root_indicators: string[] = ['.git'];
   readonly decoder = new TextDecoder('UTF-8');
 
-  constructor() {}
+  constructor(private VIM_FOLDER = '.vim') {}
+
+  get_indicators(): string {
+    return this.root_indicators.join(', ') || '<no pattern>';
+  }
 
   vim_config_remove(file: string): Promise<void> {
-    const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
+    const project_file = this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
     return Deno.remove(project_file);
   }
   //
@@ -28,19 +28,18 @@ export class FileHandler {
   }
 
   public vim_config_exists(file: string): boolean {
-    const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
+    const project_file = this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
     console.log('project_file', project_file);
     return existsSync(project_file);
   }
 
   public vim_config_write(file: string, content: string): Promise<void> {
-    const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
+    const project_file = this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
     return Deno.writeTextFile(project_file, content);
   }
 
   public async vim_config_read(file: string): Promise<string> {
-    const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
-    new TextDecoder('utf-8');
+    const project_file = this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
     return this.decoder.decode(await Deno.readFile(project_file, {}));
   }
 
@@ -68,8 +67,4 @@ export class FileHandler {
     }
     return match || Deno.cwd();
   }
-}
-
-export function load_config_file() {
-  root_patterns.push();
 }

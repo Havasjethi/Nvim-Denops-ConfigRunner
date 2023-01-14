@@ -26,10 +26,16 @@ interface StateUser<State> {
 export class CommandManager implements StateUser<CommandManagerState>, CommandManagerState {
   largestId = 0;
   configs: Command[] = [];
+  listeners: ((x: CommandManager) => void)[] = [];
+
+  onAction(x: (ss: CommandManager) => void) {
+    this.listeners.push(x);
+  }
 
   addConfig(config: BareCommand): Command {
     (config as Command).id = this.largestId += 1;
     this.configs.push(config as Command);
+    this.emit();
     return config as Command;
   }
 
@@ -42,6 +48,10 @@ export class CommandManager implements StateUser<CommandManagerState>, CommandMa
     if (index >= 0) {
       this.configs.splice(index, 1);
     }
+    this.emit();
+  }
+  async emit() {
+    this.listeners.forEach((e) => e(this));
   }
 
   public exportState(): CommandManagerState {
@@ -64,9 +74,14 @@ export class CommandLoader {
   ) {}
 
   async load(): Promise<void> {
-    const storedState = JSON.parse(await this.file_handler.vim_config_read(this.target_file));
-    this.manager.loadState(storedState);
-    return;
+    try {
+      const stored = await this.file_handler.vim_config_read(this.target_file);
+      if (!stored) return;
+      const storedState = JSON.parse(stored);
+      this.manager.loadState(storedState);
+    } catch (e) {
+      // console.log('Mivan??');
+    }
   }
 
   store(): Promise<void> {

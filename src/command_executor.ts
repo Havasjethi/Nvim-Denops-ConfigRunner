@@ -1,13 +1,32 @@
 // deno-lint-ignore-file no-explicit-any
 import './string_extend.ts';
 import { Command } from './config_manager.ts';
+import { mergeReadableStreams } from 'https://deno.land/std@0.172.0/streams/merge.ts';
 
 export interface CommandState {
   finished: boolean;
   originalCommand: Command;
   status?: number;
-  stdout?: any;
-  stderr?: any;
+  // TODO :: Might add Type to this
+  output: string[];
+
+  // TODO ::
+  p?: Promise<void>;
+}
+
+export class ClassFieldWrite implements WritableStream<Uint8Array> {
+  text_decoder = new TextDecoder('utf-8');
+  constructor(public obj: CommandState) {}
+  locked = false;
+
+  write(chunk: any) {
+    this.obj.output.push(this.text_decoder.decode(chunk));
+  }
+  async abort(reason?: any): Promise<void> {}
+  async close(): Promise<void> {}
+  getWriter(): WritableStreamDefaultWriter<Uint8Array> {
+    throw new Error('Method not implemented.');
+  }
 }
 
 export class CommandExecutor {
@@ -15,83 +34,58 @@ export class CommandExecutor {
 
   total_processes: Record<number, CommandState> = {};
   runningProcesses: Record<number, Deno.Process<any>> = {};
+  recent_process?: Command;
 
   text_decoder = new TextDecoder('utf-8');
 
-  runCommand(command: Command): Promise<CommandState> {
-    const filepath_1 = Deno.makeTempFileSync({ prefix: 'havas_denops_' });
-    const file_1 = Deno.openSync(filepath_1, { write: true, read: true, create: true });
-    // const filepath_2 = Deno.makeTempFileSync({ prefix: 'havas_denops_' });
-    // const file_2 = Deno.openSync(filepath_2);
-
+  async runCommand(command: Command, _onUpdate?: (s: CommandState) => void): Promise<CommandState> {
+    this.recent_process = command;
     const process = Deno.run({
       cmd: command.command,
       cwd: this.working_directory.resolve(command.relative_cwd),
       stdin: 'null',
-
       stderr: 'piped',
       stdout: 'piped',
-      // stderr: file_1.rid,
-      // stdout: file_2.rid,
     });
 
     this.runningProcesses[process.pid] = process;
-    this.total_processes[process.pid] = {
+
+    const processWrapper: CommandState = {
       finished: false,
       originalCommand: command,
+      output: [],
     };
-    const xx = this.total_processes[process.pid];
+    this.total_processes[process.pid] = processWrapper;
 
-    try {
-      process.stdout.readable.pipeTo(file_1.writable).then(() => console.log('hello'));
-    } catch (e) {
-      console.log('e');
-    }
+    const outputWriter = new WritableStream(new ClassFieldWrite(processWrapper));
 
-    return new Promise((res, rej) =>
-      process
-        .status()
-        .then(() => {
-          this.modify_data_1(process).then(() => res(xx));
-        })
-        .catch(rej)
-        .finally(() => file_1.close()),
-    );
+    const joined = mergeReadableStreams(process.stdout.readable, process.stderr.readable);
+    const processPiping = joined.pipeTo(outputWriter);
+
+    // TODO :: This shouldn't wait here, cause the integrated area won't receive
+    //         ANY info until the process is finished
+    //         Which is horrible for long  running processes (eg.: gradle bootRun / host webapp with auto compile)
+    const stats = await process.status();
+    await processPiping;
+    process.close();
+
+    processWrapper.finished = true;
+    processWrapper.status = stats.code;
+
+    return processWrapper;
   }
 
   private async modify_data_1(
     process: Deno.Process<{ cmd: string[]; stdout: 'piped'; stderr: 'piped' }>,
   ) {
     const status = await process.status();
-    // const [status, out, err] = await Promise.all([ process.status(), process.output(), process.stderrOutput(), ]);
-    // const [status, err] = await Promise.all([process.status(), process.stderrOutput()]);
 
     this.runningProcesses[process.pid];
     const item = this.total_processes[process.pid];
     item.finished = true;
     item.status = status.code;
-    // item.stderr = this.text_decoder.decode(err);
-    // item.stdout = this.text_decoder.decode(out);
     process.close();
   }
-
-  // private async modify_data_2(
-  // process: Deno.Process<{ cmd: string[]; stdout: number; stderr: number }>,
-  // ) {
-  // const [status, err] = await Promise.all([
-  // process.status(),
-  // // process.output(),
-  // process.stderrOutput(),
-  // ]);
-  //
-  // this.runningProcesses[process.pid];
-  // const item = this.total_processes[process.pid];
-  // item.finished = true;
-  // item.status = status.code;
-  // item.stderr = this.text_decoder.decode(err);
-  // // item.stdout = this.text_decoder.decode(out);
-  // process.close();
-  // }
 
   public killAll() {
     for (const [_key, value] of Object.entries(this.runningProcesses)) {
