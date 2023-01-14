@@ -1,7 +1,7 @@
-import { ProjectHandler } from '../src/project_handler.ts';
-import { assertEquals, assert } from 'https://deno.land/std@0.171.0/testing/asserts.ts';
+import { assert } from './test_deps.ts';
+import { FileHandler } from '../src/file_handler.ts';
 
-const ph = new ProjectHandler({});
+const ph = new FileHandler();
 
 Deno.test('Exists works', () => {
   assert(ph.vim_config_exists('.vimrc'));

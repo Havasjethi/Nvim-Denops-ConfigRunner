@@ -1,32 +1,24 @@
 import { existsSync } from './deps.ts';
+import './string_extend.ts';
 
 const root_patterns = [];
 
-declare global {
-  interface String {
-    resolve(other: string): string;
-  }
-}
-
-String.prototype.resolve = function (other: string) {
-  return this.concat('/', other);
-};
-
 const VIM_FOLDER = '.vim';
 
-export class ProjectHandler {
+export class FileHandler {
+  private project_root: string | undefined;
+  private root_indicators: string[] = ['.git'];
+  readonly decoder = new TextDecoder('UTF-8');
+
+  constructor() {}
+
   vim_config_remove(file: string): Promise<void> {
     const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
     return Deno.remove(project_file);
   }
-  private project_root: string | undefined;
-  private root_indicators: string[] = ['.git'];
-  readonly decoder = new TextDecoder('UTF-8');
+  //
   // TODO :: Should this supported??
   // private root_pattern_indicators: string[] = [''];
-
-  constructor(_denops: any) {}
-
   public add_indicator(indicator: string) {
     this.root_indicators.push(indicator);
   }
@@ -35,12 +27,9 @@ export class ProjectHandler {
     return this.project_root!;
   }
 
-  public doesFileExists(file: string) {
-    Deno.statSync;
-  }
-
   public vim_config_exists(file: string): boolean {
     const project_file = this.find_root_or_current().resolve(VIM_FOLDER).resolve(file);
+    console.log('project_file', project_file);
     return existsSync(project_file);
   }
 

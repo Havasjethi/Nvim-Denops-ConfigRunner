@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-unused-vars require-await
 import { Denops } from 'https://deno.land/x/denops_std@v1.0.0/mod.ts';
 import { ensureString } from 'https://deno.land/x/unknownutil@v0.1.1/mod.ts';
-import { ProjectHandler } from './src/project_handler.ts';
+import { FileHandler } from './src/file_handler.ts';
 
 type FileType = string;
 
@@ -27,7 +27,7 @@ const commands = [{ id: 1, name: 'Szia', command: ['echo', 'szia'] }];
 
 export async function main(denops: Denops): Promise<void> {
   initCommands(denops);
-  new ProjectHandler(denops).find_root();
+  new FileHandler(denops).find_root();
 }
 
 const initCommands = async (denops: Denops) => {
