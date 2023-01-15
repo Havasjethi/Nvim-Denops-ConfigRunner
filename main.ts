@@ -7,7 +7,7 @@ import { bufferReplace, ensureString } from './src/deps.ts';
 const CONFIG_FOLDER = '.vim';
 const CONFIG_FILE = 'havas-project.json';
 
-let global_state: {
+const global_state: {
   file_handler: FileHandler;
   manager: CommandManager;
   loader: CommandLoader;

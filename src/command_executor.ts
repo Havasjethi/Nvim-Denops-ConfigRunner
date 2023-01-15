@@ -7,11 +7,12 @@ export interface CommandState {
   finished: boolean;
   originalCommand: Command;
   status?: number;
-  // TODO :: Might add Type to this
+  // TODO :: Might add Type (Out or Err stream) to this
   output: string[];
 
-  // TODO ::
-  p?: Promise<void>;
+  promise: Promise<void>;
+  abort: (reason?: any) => void;
+  onChange?: (outputIndex: number, totalOutputArray: string[]) => void;
 }
 
 export class ClassFieldWrite implements WritableStream<Uint8Array> {
@@ -21,8 +22,9 @@ export class ClassFieldWrite implements WritableStream<Uint8Array> {
 
   write(chunk: any) {
     this.obj.output.push(this.text_decoder.decode(chunk));
+    this.obj.onChange?.call(undefined, this.obj.output.length, this.obj.output);
   }
-  async abort(reason?: any): Promise<void> {}
+  async abort(_reason?: any): Promise<void> {}
   async close(): Promise<void> {}
   getWriter(): WritableStreamDefaultWriter<Uint8Array> {
     throw new Error('Method not implemented.');
@@ -38,7 +40,7 @@ export class CommandExecutor {
 
   text_decoder = new TextDecoder('utf-8');
 
-  async runCommand(command: Command, _onUpdate?: (s: CommandState) => void): Promise<CommandState> {
+  runCommand(command: Command, onChange?: (index: number, output: string[]) => void): CommandState {
     this.recent_process = command;
     const process = Deno.run({
       cmd: command.command,
@@ -50,11 +52,22 @@ export class CommandExecutor {
 
     this.runningProcesses[process.pid] = process;
 
+    let resolve: () => void;
     const processWrapper: CommandState = {
       finished: false,
       originalCommand: command,
       output: [],
-    };
+    } as unknown as CommandState;
+    if (onChange) {
+      processWrapper.onChange = onChange;
+    }
+
+    processWrapper.promise = new Promise<void>((res, rej) => {
+      resolve = res;
+      processWrapper.abort = (msg) => {
+        Deno.kill(process.pid);
+      };
+    }).catch((e) => Deno.kill(process.pid));
     this.total_processes[process.pid] = processWrapper;
 
     const outputWriter = new WritableStream(new ClassFieldWrite(processWrapper));
@@ -65,12 +78,23 @@ export class CommandExecutor {
     // TODO :: This shouldn't wait here, cause the integrated area won't receive
     //         ANY info until the process is finished
     //         Which is horrible for long  running processes (eg.: gradle bootRun / host webapp with auto compile)
-    const stats = await process.status();
-    await processPiping;
-    process.close();
-
-    processWrapper.finished = true;
-    processWrapper.status = stats.code;
+    // const stats = await process.status();
+    process
+      .status()
+      .then(async (stats) => {
+        await processPiping;
+        process.close();
+        processWrapper.finished = true;
+        processWrapper.status = stats.code;
+        resolve();
+      })
+      .catch((err) => {
+        console.log('Error: ', err);
+        process.close();
+        processWrapper.finished = true;
+        processWrapper.status = -1;
+        resolve();
+      });
 
     return processWrapper;
   }

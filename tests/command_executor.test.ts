@@ -1,15 +1,26 @@
 import { CommandExecutor } from '../src/command_executor.ts';
 import { Command } from '../src/config_manager.ts';
+import { assert } from './test_deps.ts';
 
 const command: Command = {
   id: 1,
   name: 'Asd',
-  command: ['echo', 'hello', 'world'],
-  // command: ['sleep', '5'],
+  command: ['sh', '-c', 'echo asd; sleep 1; echo asd; echo 12; sleep 5'],
 };
-const x = new CommandExecutor(Deno.cwd());
+const testCommand = new CommandExecutor(Deno.cwd());
 
-Deno.test('Main', async () => {
-  const result = await x.runCommand(command);
-  console.log('res', result);
+Deno.test('Run and abort - early', async () => {
+  const result = testCommand.runCommand(command);
+  setTimeout(() => result.abort(), 300);
+  await result.promise.catch(() => {});
+
+  assert(result.output.length === 1);
+});
+
+Deno.test('Run and abort - lately', async () => {
+  const result = testCommand.runCommand(command);
+  setTimeout(() => result.abort(), 1300);
+  await result.promise.catch(() => {});
+
+  assert(result.output.length > 1);
 });
