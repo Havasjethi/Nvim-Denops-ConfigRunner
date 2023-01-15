@@ -1,0 +1,4 @@
+- [ ] Streaming write to console
+- [ ] Toggle console
+- [ ] Rerun previous command
+- [ ] Watch config file, reload on change & -> Validate!!

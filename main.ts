@@ -1,38 +1,55 @@
-// deno-lint-ignore-file no-unused-vars require-await
-import { Denops } from 'https://deno.land/x/denops_std@v1.0.0/mod.ts';
-import { ensureString } from 'https://deno.land/x/unknownutil@v0.1.1/mod.ts';
+// deno-lint-ignore-file no-unused-vars require-await no-explicit-any no-var valid-typeof no-inner-declarations no-redeclare
+import { CommandExecutor } from './src/command_executor.ts';
 import { CommandLoader, CommandManager } from './src/config_manager.ts';
 import { FileHandler } from './src/file_handler.ts';
-
+import { Denops } from './src/deps.ts';
+import { bufferReplace, bufferAppend, ensureString } from './src/deps.ts';
 const CONFIG_FOLDER = '.vim';
 const CONFIG_FILE = 'havas-project.json';
 
-const file_handler = new FileHandler(CONFIG_FOLDER);
-file_handler.find_root_or_current();
-const manager = new CommandManager();
-const loader = new CommandLoader(manager, file_handler, CONFIG_FILE);
-
-const global_state = {
-  file_handler,
-  manager,
-  loader,
-};
+// declare var BUFFER_ID: number | undefined;
+// if (typeof BUFFER_ID === undefined) {
+// var BUFFER_ID: number | undefined = undefined;
+// }
+// let BUFFER_ID: number | undefined = undefined;
+// deno-lint-ignore prefer-const
+let global_state: {
+  file_handler: FileHandler;
+  manager: CommandManager;
+  loader: CommandLoader;
+  executor: CommandExecutor;
+  BUFFER_ID: undefined | number;
+} = { BUFFER_ID: undefined } as any;
 
 export async function main(denops: Denops): Promise<void> {
-  file_handler.find_root_or_current();
-  const loader = new CommandLoader(manager, file_handler, CONFIG_FILE);
-  loader.load().catch((e) => console.log('No file'));
-  manager.onAction((x) => loader.store());
+  init_global_state();
+  global_state.file_handler.find_root_or_current();
 
-  if (file_handler.vim_config_exists('.vimrc')) {
+  global_state.loader.load().catch((e) => console.log('No file'));
+  global_state.manager.onAction((x) => global_state.loader.store());
+
+  if (global_state.file_handler.vim_config_exists('.vimrc')) {
     denops.cmd(`source ${CONFIG_FOLDER}/.vimrc`);
   }
 
-  if (file_handler.vim_config_exists('init.lua')) {
+  if (global_state.file_handler.vim_config_exists('init.lua')) {
     denops.cmd(`luafile ${CONFIG_FOLDER}/init.lua`);
   }
 
   initCommands(denops);
+}
+
+function init_global_state() {
+  const file_handler = new FileHandler(CONFIG_FOLDER);
+  file_handler.find_root_or_current();
+  const manager = new CommandManager();
+  const loader = new CommandLoader(manager, file_handler, CONFIG_FILE);
+  const executor = new CommandExecutor(Deno.cwd());
+
+  global_state.file_handler = file_handler;
+  global_state.manager = manager;
+  global_state.loader = loader;
+  global_state.executor = executor;
 }
 
 const initCommands = async (denops: Denops) => {
@@ -45,26 +62,50 @@ const initCommands = async (denops: Denops) => {
       console.log(global_state.file_handler.get_indicators());
     },
     async AddCommand(this: Denops, input_string: string): Promise<void> {
-      // ensureString(pattern);
-      const x = input_string.split(',');
-      global_state.manager.addConfig({ name: x[0], command: x[1].split(' ') });
-      global_state.manager;
+      ensureString(input_string);
+      const input = input_string.split(',');
+      global_state.manager.addConfig({ name: input[0], command: input[1].split(' ') });
+    },
+    async ReloadCommands(this: Denops): Promise<void> {
+      global_state.loader.load();
     },
     async ListCommands(this: Denops): Promise<void> {
       const commands: CommandLike[] = global_state.manager.getCommands();
       const x = `:lua AVAILABLE_COMMANDS = ${mapper(commands)}`;
       await denops.cmd(x);
+      // TODO :: Find better way for this!!
       await denops.cmd(`:HavasConfigListLua`);
     },
-    async ExecuteCommand(this: Denops, commandId: unknown): Promise<void> {
-      console.log('Executing... ', commandId);
+    async ExecuteCommand(this: Denops, commandId: string): Promise<void> {
+      console.log('Hell', typeof +commandId, +commandId);
+      const command = global_state.manager.getById(+commandId);
+
+      if (!command) {
+        console.log('Cannot find command with id:', commandId);
+        return;
+      }
+
+      console.log('Executing... ', command.name);
+      const result = await global_state.executor.runCommand(command);
+      console.log('Result: ', result.output[0]);
+
+      if (!global_state.BUFFER_ID) {
+        const s = await denops.cmd('new +setl\\ buftype=nofile');
+        global_state.BUFFER_ID = (await denops.call('nvim_get_current_buf')) as number;
+      } else {
+        console.log('Exist:');
+        await denops.cmd(`sbuffer ${global_state.BUFFER_ID}`);
+      }
+      const formatted_text = result.output.map((e) => e.split('\n')).flat(1);
+      formatted_text.unshift(command.command.join(' '));
+
+      bufferReplace(denops as any, global_state.BUFFER_ID, formatted_text);
     },
     async Test(this: Denops): Promise<void> {
-      const result = await denops.cmd(':lua ' + `require('telescope.themes').get_dropdown{}`);
-      console.log('Result xyz:: ', result);
+      // await denops.cmd(`sbuffer ${BUFFER_ID}`);
     },
   };
-  await xxx(denops, denops_required);
+  await bindCommands(denops, denops_required);
 };
 
 type CommandLike = {
@@ -81,10 +122,10 @@ const mapper = (commands: CommandLike[]) => {
   return `{${x.join(',')}}`;
 };
 
-async function xxx(denops: Denops, denops_required: Record<string, CallableFunction>) {
+async function bindCommands(denops: Denops, denops_required: Record<string, CallableFunction>) {
   const to_register: any = {};
   for (const [key, value] of Object.entries(denops_required)) {
-    console.log(key);
+    // console.log(key);
     to_register[key] = value.bind(denops);
     await denops.cmd(
       `command! -nargs=? HavasProject${key} call denops#request('${denops.name}', '${key}', [<q-args>])`,
@@ -95,28 +136,3 @@ async function xxx(denops: Denops, denops_required: Record<string, CallableFunct
     ...to_register,
   };
 }
-
-// async function setProjectRoot(this: Denops, currentRoot: string): Promise<FileType> {
-// const entries = [];
-// const folder = currentRoot;
-// const targets = PATTERNS;
-// let match_found = false;
-//
-// if (targets.length === 0) {
-// PROJECT_ROOT = folder;
-// return PROJECT_ROOT;
-// }
-//
-// do {
-// for await (const dirEntry of Deno.readDir(currentRoot)) {
-// const matching = !!targets.find((e) => e === dirEntry.name);
-// if (matching) {
-// match_found = true;
-// }
-// entries.push();
-// }
-// } while (!match_found);
-//
-// PROJECT_ROOT = folder;
-// return PROJECT_ROOT;
-// }

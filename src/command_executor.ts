@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import './string_extend.ts';
 import { Command } from './config_manager.ts';
-import { mergeReadableStreams } from 'https://deno.land/std@0.172.0/streams/merge.ts';
+import { mergeReadableStreams } from './deps.ts';
 
 export interface CommandState {
   finished: boolean;

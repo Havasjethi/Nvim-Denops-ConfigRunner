@@ -29,7 +29,6 @@ export class FileHandler {
 
   public vim_config_exists(file: string): boolean {
     const project_file = this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
-    console.log('project_file', project_file);
     return existsSync(project_file);
   }
 

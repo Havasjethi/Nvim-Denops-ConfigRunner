@@ -1,0 +1,13 @@
+{
+  "largestId": 3,
+  "configs": [
+    { "name": "szia", "command": ["echo", "hello", "world", "asd"], "id": 1 },
+    { "name": "Deno test", "command": ["deno", "test", "-A"], "id": 2 },
+    {
+      "name": "Deno check",
+      "command": ["fish", "/home/havas/.deno/bin/deno", "check", "--all", "main.ts", "./**/*.ts"],
+      "id": 3
+    }
+  ]
+}
+
