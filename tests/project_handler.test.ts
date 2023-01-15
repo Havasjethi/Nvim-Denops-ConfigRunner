@@ -22,3 +22,11 @@ Deno.test('Write-Read-Delete works', async () => {
 
   assert(!ph.vim_config_exists(text));
 });
+
+Deno.test('Listening', async () => {
+  const x = 'Salom';
+  await ph.vim_config_write(x, 'S');
+  let a = ph.watch_file(`.vim/${x}`, (e) => console.log('Event listener called', e));
+  await ph.vim_config_write(x, 'medve');
+  ph.closeListeners();
+});

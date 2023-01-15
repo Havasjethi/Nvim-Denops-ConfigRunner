@@ -8,3 +8,4 @@ export {
   append as bufferAppend,
   replace as bufferReplace,
 } from 'https://deno.land/x/denops_std@v4.0.0/buffer/mod.ts';
+export { input as vimInput } from 'https://deno.land/x/denops_std@v4.0.0/helper/mod.ts';

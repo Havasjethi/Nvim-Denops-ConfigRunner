@@ -6,6 +6,27 @@ export class FileHandler {
   private root_indicators: string[] = ['.git'];
   readonly decoder = new TextDecoder('UTF-8');
 
+  watchers: Deno.FsWatcher[] = [];
+
+  async watch_file(target_file: string, listener: (event: Deno.FsEvent) => void): Promise<void> {
+    // TODO :: When file not exists
+    let watcher: Deno.FsWatcher;
+    try {
+      watcher = Deno.watchFs(target_file, { recursive: false });
+    } catch (e) {
+      console.log('Unable to subscribe to file changes.', e);
+      return;
+    }
+    this.watchers.push(watcher);
+    for await (const event of watcher) {
+      listener(event);
+    }
+  }
+
+  closeListeners() {
+    this.watchers.forEach((e) => e.close());
+  }
+
   constructor(private VIM_FOLDER = '.vim') {}
 
   get_indicators(): string {
@@ -25,6 +46,10 @@ export class FileHandler {
 
   public get_root(): string {
     return this.project_root!;
+  }
+
+  public to_inner_path(file: string): string {
+    return this.find_root_or_current().resolve(this.VIM_FOLDER).resolve(file);
   }
 
   public vim_config_exists(file: string): boolean {

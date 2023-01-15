@@ -1,3 +1,4 @@
+// deno-lint-ignore-file require-await
 import { FileHandler } from './file_handler.ts';
 
 const CONFIG_TARGET = 'havas_cmd.json';
@@ -20,8 +21,6 @@ interface StateUser<State> {
   exportState(): State;
   loadState(state: State): void;
 }
-
-// interface statePatternUser<State> extends State, StateUser<State> {}
 
 export class CommandManager implements StateUser<CommandManagerState>, CommandManagerState {
   largestId = 0;
@@ -54,6 +53,7 @@ export class CommandManager implements StateUser<CommandManagerState>, CommandMa
     }
     this.emit();
   }
+
   async emit() {
     this.listeners.forEach((e) => e(this));
   }
@@ -71,21 +71,43 @@ export class CommandManager implements StateUser<CommandManagerState>, CommandMa
 }
 
 export class CommandLoader {
+  listening = false;
   constructor(
     private manager: CommandManager,
     private file_handler: FileHandler,
     private target_file: string = CONFIG_TARGET,
   ) {}
 
-  async load(): Promise<void> {
+  async load(shouldListen = false): Promise<void> {
     const stored = await this.file_handler.vim_config_read(this.target_file);
     if (!stored) return;
-    const storedState = JSON.parse(stored);
-    this.manager.loadState(storedState);
+    try {
+      const storedState = JSON.parse(stored);
+      this.manager.loadState(storedState);
+    } catch (e) {
+      console.log('Error paring & Loading file', e);
+    }
+
+    if (!this.listening && shouldListen) {
+      this.listen();
+    }
   }
 
-  store(): Promise<void> {
-    const state = JSON.stringify(this.manager.exportState());
-    return this.file_handler.vim_config_write(this.target_file, state);
+  async store(shouldListen = false): Promise<void> {
+    const state = JSON.stringify(this.manager.exportState(), undefined, 2);
+    await this.file_handler.vim_config_write(this.target_file, state);
+
+    if (!this.listening && shouldListen) {
+      this.listen();
+    }
+  }
+
+  listen(): void {
+    this.listening = true;
+    this.file_handler
+      .watch_file(this.file_handler.to_inner_path(this.target_file), (event) => {
+        if (event.kind === 'modify') this.load();
+      })
+      .then(() => (this.listening = false));
   }
 }

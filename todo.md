@@ -1,4 +1,6 @@
+- [x] Watch config file, reload on change & -> Validate!!
 - [ ] Streaming write to console
 - [ ] Toggle console
+- [ ] Kill running Command
 - [ ] Rerun previous command
-- [ ] Watch config file, reload on change & -> Validate!!
+- [ ] Bindings

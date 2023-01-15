@@ -1,18 +1,12 @@
-// deno-lint-ignore-file no-unused-vars require-await no-explicit-any no-var valid-typeof no-inner-declarations no-redeclare
 import { CommandExecutor } from './src/command_executor.ts';
 import { CommandLoader, CommandManager } from './src/config_manager.ts';
 import { FileHandler } from './src/file_handler.ts';
-import { Denops } from './src/deps.ts';
-import { bufferReplace, bufferAppend, ensureString } from './src/deps.ts';
+import { Denops, vimInput } from './src/deps.ts';
+import { bufferReplace, ensureString } from './src/deps.ts';
+
 const CONFIG_FOLDER = '.vim';
 const CONFIG_FILE = 'havas-project.json';
 
-// declare var BUFFER_ID: number | undefined;
-// if (typeof BUFFER_ID === undefined) {
-// var BUFFER_ID: number | undefined = undefined;
-// }
-// let BUFFER_ID: number | undefined = undefined;
-// deno-lint-ignore prefer-const
 let global_state: {
   file_handler: FileHandler;
   manager: CommandManager;
@@ -25,7 +19,7 @@ export async function main(denops: Denops): Promise<void> {
   init_global_state();
   global_state.file_handler.find_root_or_current();
 
-  global_state.loader.load().catch((e) => console.log('No file'));
+  global_state.loader.load(true).catch((e) => console.log('No file'));
   global_state.manager.onAction((x) => global_state.loader.store());
 
   if (global_state.file_handler.vim_config_exists('.vimrc')) {
@@ -63,21 +57,30 @@ const initCommands = async (denops: Denops) => {
     },
     async AddCommand(this: Denops, input_string: string): Promise<void> {
       ensureString(input_string);
-      const input = input_string.split(',');
-      global_state.manager.addConfig({ name: input[0], command: input[1].split(' ') });
+      if (typeof input_string === 'string' && input_string.trim().length >= 2) {
+        const input = input_string.split(',');
+        global_state.manager.addConfig({ name: input[0], command: input[1].split(' ') });
+        return;
+      }
+      const name = await vimInput(denops as any, { prompt: 'Name: ', text: '' });
+      const command = await vimInput(denops as any, { prompt: 'Command: ', text: '' });
+      if (typeof name !== 'string' || typeof command !== 'string') {
+        console.log('Unable to create command');
+        return;
+      }
+
+      global_state.manager.addConfig({ name, command: command.split(' ') });
     },
     async ReloadCommands(this: Denops): Promise<void> {
       global_state.loader.load();
     },
     async ListCommands(this: Denops): Promise<void> {
       const commands: CommandLike[] = global_state.manager.getCommands();
-      const x = `:lua AVAILABLE_COMMANDS = ${mapper(commands)}`;
-      await denops.cmd(x);
+      await denops.cmd(`:lua AVAILABLE_COMMANDS = ${mapper(commands)}`);
       // TODO :: Find better way for this!!
       await denops.cmd(`:HavasConfigListLua`);
     },
     async ExecuteCommand(this: Denops, commandId: string): Promise<void> {
-      console.log('Hell', typeof +commandId, +commandId);
       const command = global_state.manager.getById(+commandId);
 
       if (!command) {
@@ -125,7 +128,6 @@ const mapper = (commands: CommandLike[]) => {
 async function bindCommands(denops: Denops, denops_required: Record<string, CallableFunction>) {
   const to_register: any = {};
   for (const [key, value] of Object.entries(denops_required)) {
-    // console.log(key);
     to_register[key] = value.bind(denops);
     await denops.cmd(
       `command! -nargs=? HavasProject${key} call denops#request('${denops.name}', '${key}', [<q-args>])`,
