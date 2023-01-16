@@ -1,6 +1,8 @@
 - [x] Watch config file, reload on change & -> Validate!!
-- [ ] Streaming write to console
+- [x] Streaming write to console
 - [ ] Toggle console
 - [ ] Kill running Command
-- [ ] Rerun previous command
+- [x] Rerun previous command
 - [ ] Bindings
+- [ ] Monitor running processes
+- [ ] Update process display in the buffer
