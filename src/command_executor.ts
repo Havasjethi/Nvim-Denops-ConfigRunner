@@ -40,6 +40,10 @@ export class CommandExecutor {
 
   text_decoder = new TextDecoder('utf-8');
 
+  getLastCommand(): Command | undefined {
+    return this.recent_process;
+  }
+
   runCommand(command: Command, onChange?: (index: number, output: string[]) => void): CommandState {
     this.recent_process = command;
     const process = Deno.run({

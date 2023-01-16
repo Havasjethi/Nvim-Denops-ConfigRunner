@@ -80,6 +80,12 @@ const initCommands = async (denops: Denops) => {
       // TODO :: Find better way for this!!
       await denops.cmd(`:HavasConfigListLua`);
     },
+    async Rerun(this: Denops): Promise<void> {
+      const command = global_state.executor.getLastCommand();
+      command
+        ? denops_required.ExecuteCommand(this, command.id)
+        : denops_required.ListCommands(this);
+    },
     async ExecuteCommand(this: Denops, commandId: string): Promise<void> {
       const command = global_state.manager.getById(+commandId);
 
