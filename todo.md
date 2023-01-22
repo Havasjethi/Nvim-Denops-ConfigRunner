@@ -2,7 +2,11 @@
 - [x] Streaming write to console
 - [ ] Toggle console
 - [ ] Kill running Command
-- [x] Rerun previous command
-- [ ] Bindings
 - [ ] Monitor running processes
-- [ ] Update process display in the buffer
+  - [ ] Custom UI - Buffer displayed, (readonly)
+  - [ ] Bindings for buffer
+    - [ ] Kill running Command
+    - [ ] Toggle console
+- [x] Rerun previous command
+- [ ] Bindings for local usage
+- [?] Update process display in the buffer - Test with..?

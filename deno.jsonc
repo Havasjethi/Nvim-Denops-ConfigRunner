@@ -1,4 +1,7 @@
 {
+  "tasks": {
+    "display_test": "deno run -A --unstable bin/display_test.ts"
+  },
   "lint": {
     "rules": {
       "exclude": [

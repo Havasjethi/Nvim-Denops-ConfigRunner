@@ -1,8 +1,9 @@
 import { CommandExecutor } from './src/command_executor.ts';
 import { CommandLoader, CommandManager } from './src/config_manager.ts';
 import { FileHandler } from './src/file_handler.ts';
-import { Denops, vimInput } from './src/deps.ts';
+import { bufferAppend, Denops, vimInput } from './src/deps.ts';
 import { bufferReplace, ensureString } from './src/deps.ts';
+import { nvim_open_win } from 'https://deno.land/x/denops_std@v4.0.0/function/nvim/mod.ts';
 
 const CONFIG_FOLDER = '.vim';
 const CONFIG_FILE = 'havas-project.json';
@@ -82,6 +83,10 @@ const initCommands = async (denops: Denops) => {
     },
     async Rerun(this: Denops): Promise<void> {
       const command = global_state.executor.getLastCommand();
+      // if (command) {
+      // console.log(command.id);
+      // return;
+      // }
       command
         ? denops_required.ExecuteCommand(this, command.id)
         : denops_required.ListCommands(this);
@@ -95,20 +100,38 @@ const initCommands = async (denops: Denops) => {
       }
 
       console.log('Executing... ', command.name);
-      const result = await global_state.executor.runCommand(command);
+      const result = global_state.executor.runCommand(command, () => {});
       console.log('Result: ', result.output[0]);
 
-      if (!global_state.BUFFER_ID) {
-        const s = await denops.cmd('new +setl\\ buftype=nofile');
-        global_state.BUFFER_ID = (await denops.call('nvim_get_current_buf')) as number;
-      } else {
-        console.log('Exist:');
-        await denops.cmd(`sbuffer ${global_state.BUFFER_ID}`);
-      }
+      const buffer_id = (await denops.call('nvim_create_buf', false, true)) as number;
+
+      await bufferReplace(denops as any, buffer_id, ['asd']);
+      await bufferAppend(denops as any, buffer_id, ['asd']);
+      await nvim_open_win(denops as any, buffer_id, true, {
+        row: 0,
+        col: 0,
+        width: 20,
+        height: 20,
+        relative: 'editor',
+        // relative: 'cursor',
+        anchor: 'NW',
+        style: 'minimal',
+        border: 'rounded',
+      });
+      // await denops.call('nvim_open_win', buffer_id, true, {});
+
+      // if (!global_state.BUFFER_ID || true) {
+      // // const s = await denops.cmd('new +setl\\ buftype=nofile');
+      // console.log('Resutl: ', s);
+      // global_state.BUFFER_ID = (await denops.call('nvim_get_current_buf')) as number;
+      // } else {
+      // console.log('Exist:');
+      // await denops.cmd(`sbuffer ${global_state.BUFFER_ID}`);
+      // }
       const formatted_text = result.output.map((e) => e.split('\n')).flat(1);
       formatted_text.unshift(command.command.join(' '));
 
-      bufferReplace(denops as any, global_state.BUFFER_ID, formatted_text);
+      bufferReplace(denops as any, buffer_id, formatted_text);
     },
     async Test(this: Denops): Promise<void> {
       // await denops.cmd(`sbuffer ${BUFFER_ID}`);
